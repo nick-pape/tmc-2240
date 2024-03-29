@@ -1,4 +1,5 @@
 import spidev
+from typing import Callable
 
 class TMCSPIWrapper:
     def __init__(self, bus, device):
@@ -35,21 +36,26 @@ class TMCSPIWrapper:
         # clear the spi buffer
         return spi
 
-
-
 class TMCRegister():
-    def __init__(self, spi: TMCSPIWrapper, address: hex):
+    def __init__(self, address: hex, spi: TMCSPIWrapper, status_cb: Callable[[str, str], int]):
         if (address == None):
             raise Exception("Must specify the register address")
-        self.address = address
-        self.__spi = spi
+        self.address: hex = address
+        self.__spi: TMCSPIWrapper = spi
+        self.__status_cb: Callable[[hex], None] = status_cb
 
         self._values = {}
 
         self.read()
 
     def read(self):
+        print('Reading from ', self.address)
         data = self.__spi.read(self.address)
+
+        formatted_data = "".join([f"{format(i, '02X')}" for i in data])
+        print(f"Read from 0x{format(self.address, '02X')} : 0x{formatted_data}")
+
+        self.__status_cb(data[0])
         self._decode(data[1:])
 
     def _decode(self, data: [hex, hex, hex, hex]):
@@ -61,16 +67,11 @@ class TMCRegister():
     def __str__(self):
         return '\n'.join(f'[{key}] {self._values[key]}' for key in self._values)
 
-
 class IOInputRegister(TMCRegister):
     def _decode(self, data: [hex, hex, hex, hex]):
-        print(data)
-
         self._values['version']     = int(data[0])
         
         self._values['silicon_rev'] = int(data[1] >> 5 & 0b111)
-        
-        #print(data[2])
 
         self._values['adc_err']     = bool(data[2] >> 7 & 0b1)
         self._values['ext_clk']     = bool(data[2] >> 6 & 0b1)
@@ -161,13 +162,53 @@ class TMCDriver():
     def __init__(self, spi_bus, spi_device):
         self.__spi: TMCSPIWrapper = TMCSPIWrapper(spi_bus, spi_device)
 
-        self.ioin = IOInputRegister(self.__spi, 0x04)
+        self.__ioin = IOInputRegister(0x04, self.__spi, self.__set_status)
+
+        self.__registers = [
+            self.__ioin
+        ]
+
+    def read(self):
+        for register in self.__registers:
+            register.read()
 
     def close(self):
         self.__spi.close()
+        self = None
 
+    def __set_status(self, status: hex):
+        self.__status = {
+            'standstill':   bool((status >> 3) & 1),
+            'sg2':          bool((status >> 2) & 1),
+            'driver_error': bool((status >> 1) & 1),
+            'reset_flag':   bool(status & 1)
+        }
+
+    @property
+    def ioin(self):
+        return self.__ioin
+
+    @property
+    def standstill(self):
+        return self.__status['standstill']
     
-driver = TMCDriver(spi_bus=0, spi_device=0)
+    @property
+    def sg2(self):
+        return self.__status['sg2']
+
+    @property
+    def driver_error(self):
+        return self.__status['driver_error']
+
+    @property
+    def reset_flag(self):
+        return self.__status['reset_flag']
+
+    def __str__(self):
+        if self.__status == None:
+            return 'Status not yet read.'
+        return '\n'.join(f'[{key}] {self.__status[key]}' for key in self.__status)
+
 
 import Jetson.GPIO as GPIO
 
@@ -176,12 +217,16 @@ DIR_PIN = 31
 GPIO.setmode(GPIO.BOARD)    
 GPIO.setup([STEP_PIN, DIR_PIN], GPIO.OUT, initial=GPIO.LOW)
 
-print(driver.ioin.dir)
+driver = TMCDriver(spi_bus=0, spi_device=0)
+
+print('Direction:', driver.ioin.dir)
+print('Standstill:', driver.standstill)
 
 GPIO.output(DIR_PIN, GPIO.HIGH)
-driver.ioin.read()
+driver.read()
 
-print(driver.ioin.dir)
+print('Direction:', driver.ioin.dir)
+print('Standstill:', driver.standstill)
 
 GPIO.cleanup([STEP_PIN, DIR_PIN])
 driver.close()
