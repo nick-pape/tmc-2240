@@ -1,6 +1,8 @@
+import logging
 import spidev
 from tabulate import tabulate
 from typing import Callable
+
 
 class TMCSPIWrapper:
     def __init__(self, bus, device):
@@ -60,7 +62,7 @@ class TMCRegister():
         data = self.__spi.read(self.address)
 
         formatted_data = "".join([f"{format(i, '02X')}" for i in data])
-        print(f"Read from 0x{format(self.address, '02X')} : 0x{formatted_data}")
+        logging.debug(f"Read from 0x{format(self.address, '02X')} : 0x{formatted_data}")
 
         self.__status_cb(data[0])
         self._decode(data[1:])
