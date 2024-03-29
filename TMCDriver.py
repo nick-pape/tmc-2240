@@ -40,6 +40,8 @@ class TMCSPIWrapper:
         return spi
 
 class TMCRegister():
+    READONLY = 0x01
+
     def __init__(self, address: hex, name: str, spi: TMCSPIWrapper, status_cb: Callable[[str, str], int], value_map):
         if (address == None):
             raise Exception("Must specify the register address")
@@ -52,9 +54,16 @@ class TMCRegister():
         self._values = {}
         self._value_map = value_map
 
-        for name, _, _, _ in self._value_map:
+        for name, _, _, _, *optional in self._value_map:
             getter = lambda self, name=name: self._values[name]
-            setattr(self.__class__, name, property(getter))
+    
+            prop = property(getter)
+
+            if (len(optional) == 0 or optional[0] != TMCRegister.READONLY):
+                setter = lambda self, value, name=name: self._values.__setitem__(name, value)
+                prop = prop.setter(setter)
+
+            setattr(self.__class__, name, prop)
 
         self.read()
 
@@ -83,7 +92,7 @@ class TMCRegister():
 class GlobalConfigRegister(TMCRegister):
     def __init__(self, spi: TMCSPIWrapper, status_cb: Callable[[str, str], int]):
         super().__init__(0x00, 'gconf', spi, status_cb, [
-            ['direct_mode',      16, 1, bool ],
+            ['direct_mode',      16, 1, bool],
             ['stop_enable',      15, 1, bool],
             ['small_hysteresis', 14, 1, bool],
             ['diag1_pushpull',   13, 1, bool],
@@ -113,23 +122,23 @@ class GlobalStatusRegister(TMCRegister):
 class IOInputRegister(TMCRegister):
     def __init__(self, spi: TMCSPIWrapper, status_cb: Callable[[str, str], int]):
         super().__init__(0x04, 'ioin', spi, status_cb, [
-            ['version',     31, 8, int ],
-            ['silicon_rev', 18, 3, int ],
-            ['adc_err',     15, 1, bool],
-            ['ext_clk',     14, 1, bool],
-            ['ext_res_det', 13, 1, bool],
+            ['version',     31, 8, int,  TMCRegister.READONLY],
+            ['silicon_rev', 18, 3, int,  TMCRegister.READONLY],
+            ['adc_err',     15, 1, bool, TMCRegister.READONLY],
+            ['ext_clk',     14, 1, bool, TMCRegister.READONLY],
+            ['ext_res_det', 13, 1, bool, TMCRegister.READONLY],
             ['output',      12, 1, bool],
-            ['comp_b1_b2',  11, 1, bool],
-            ['comp_a1_a2',  10, 1, bool],
-            ['comp_b',      9,  1, bool],
-            ['comp_a',      8,  1, bool],
-            ['uart_en',     6,  1, bool],
-            ['encn',        5,  1, bool],
-            ['drv_enn',     4,  1, bool],
-            ['enca',        3,  1, bool],  
-            ['encb',        2,  1, bool],
-            ['dir',         1,  1, bool],
-            ['step',        0,  1, bool]
+            ['comp_b1_b2',  11, 1, bool, TMCRegister.READONLY],
+            ['comp_a1_a2',  10, 1, bool, TMCRegister.READONLY],
+            ['comp_b',      9,  1, bool, TMCRegister.READONLY],
+            ['comp_a',      8,  1, bool, TMCRegister.READONLY],
+            ['uart_en',     6,  1, bool, TMCRegister.READONLY],
+            ['encn',        5,  1, bool, TMCRegister.READONLY],
+            ['drv_enn',     4,  1, bool, TMCRegister.READONLY],
+            ['enca',        3,  1, bool, TMCRegister.READONLY],  
+            ['encb',        2,  1, bool, TMCRegister.READONLY],
+            ['dir',         1,  1, bool, TMCRegister.READONLY],
+            ['step',        0,  1, bool, TMCRegister.READONLY]
         ])
 
 class DriveConfigRegister(TMCRegister):
@@ -163,7 +172,7 @@ class PowerdownRegister(TMCRegister):
 class TStepRegister(TMCRegister):
     def __init__(self, spi: TMCSPIWrapper, status_cb: Callable[[str, str], int]):
         super().__init__(0x12, 'tstep', spi, status_cb, [
-            ['tstep',  19, 20, int]
+            ['tstep',  19, 20, int, TMCRegister.READONLY]
         ])
 
 class TPWMThresholdRegister(TMCRegister):
@@ -226,20 +235,20 @@ class EncoderStatusRegister(TMCRegister):
 class EncoderLatchRegister(TMCRegister):
     def __init__(self, spi: TMCSPIWrapper, status_cb: Callable[[str, str], int]):
         super().__init__(0x3C, 'enc_latch', spi, status_cb, [
-            ['enc_const',  31, 32, int]
+            ['enc_const',  31, 32, int, TMCRegister.READONLY]
         ])
 
 class ADCRegister(TMCRegister):
     def __init__(self, spi: TMCSPIWrapper, status_cb: Callable[[str, str], int]):
         super().__init__(0x50, 'adc_vsupply_ain', spi, status_cb, [
-            ['adc_ain',      28, 13, int],
-            ['adc_vsupply',  12, 13, int],
+            ['adc_ain',      28, 13, int, TMCRegister.READONLY],
+            ['adc_vsupply',  12, 13, int, TMCRegister.READONLY],
         ])
 
 class ADCTempRegister(TMCRegister):
     def __init__(self, spi: TMCSPIWrapper, status_cb: Callable[[str, str], int]):
         super().__init__(0x51, 'adc_temp', spi, status_cb, [
-            ['adc_temp',     12, 13, int],
+            ['adc_temp',     12, 13, int, TMCRegister.READONLY],
         ])
 
 class OvertempOvervoltageRegister(TMCRegister):
@@ -252,14 +261,14 @@ class OvertempOvervoltageRegister(TMCRegister):
 class MicrostepCounterRegister(TMCRegister):
     def __init__(self, spi: TMCSPIWrapper, status_cb: Callable[[str, str], int]):
         super().__init__(0x6A, 'mscnt', spi, status_cb, [
-            ['mscnt', 9, 10, int],
+            ['mscnt', 9, 10, int, TMCRegister.READONLY],
         ])
 
 class MicrostepCurrentRegister(TMCRegister):
     def __init__(self, spi: TMCSPIWrapper, status_cb: Callable[[str, str], int]):
         super().__init__(0x6B, 'mscuract', spi, status_cb, [
-            ['cur_a', 24, 9, int],
-            ['cur_b', 8, 9, int],
+            ['cur_a', 24, 9, int, TMCRegister.READONLY],
+            ['cur_b', 8, 9, int, TMCRegister.READONLY],
         ])
 
 class ChopperConfigRegister(TMCRegister):
@@ -297,20 +306,20 @@ class CoolstepConfigRegister(TMCRegister):
 class DriveStatusRegister(TMCRegister):
     def __init__(self, spi: TMCSPIWrapper, status_cb: Callable[[str, str], int]):
         super().__init__(0x6F, 'drv_status', spi, status_cb, [
-            ['stst',       31, 1, bool],
-            ['olb',        30, 1, bool],
-            ['ola',        29, 1, bool],
-            ['s2gb',       28, 1, bool],
-            ['s2ga',       27, 1, bool],
-            ['optw',       26, 1, bool],
-            ['ot',         25, 1, bool],
-            ['stallguard', 24, 1, bool],
-            ['cs_actual',  20, 5, int],
-            ['fsactive',   15, 1, bool],
-            ['stealth',    14, 1, bool],
-            ['s2vsb',      13, 1, bool],
-            ['s2vsa',      12, 1, bool],
-            ['sg_result',   9, 10, int],
+            ['stst',       31, 1, bool, TMCRegister.READONLY],
+            ['olb',        30, 1, bool, TMCRegister.READONLY],
+            ['ola',        29, 1, bool, TMCRegister.READONLY],
+            ['s2gb',       28, 1, bool, TMCRegister.READONLY],
+            ['s2ga',       27, 1, bool, TMCRegister.READONLY],
+            ['optw',       26, 1, bool, TMCRegister.READONLY],
+            ['ot',         25, 1, bool, TMCRegister.READONLY],
+            ['stallguard', 24, 1, bool, TMCRegister.READONLY],
+            ['cs_actual',  20, 5, int,  TMCRegister.READONLY],
+            ['fsactive',   15, 1, bool, TMCRegister.READONLY],
+            ['stealth',    14, 1, bool, TMCRegister.READONLY],
+            ['s2vsb',      13, 1, bool, TMCRegister.READONLY],
+            ['s2vsa',      12, 1, bool, TMCRegister.READONLY],
+            ['sg_result',   9, 10, int, TMCRegister.READONLY],
         ])
 
 class PWMConfigRegister(TMCRegister):
@@ -331,15 +340,15 @@ class PWMConfigRegister(TMCRegister):
 class PWMScaleRegister(TMCRegister):
     def __init__(self, spi: TMCSPIWrapper, status_cb: Callable[[str, str], int]):
         super().__init__(0x71, 'pwm_scale', spi, status_cb, [
-            ['pwm_scale_auto', 24, 9, int],
-            ['pwm_scale_sum',  9, 10, int],
+            ['pwm_scale_auto', 24, 9, int, TMCRegister.READONLY],
+            ['pwm_scale_sum',  9, 10, int, TMCRegister.READONLY],
         ])
 
 class PWMAutoRegister(TMCRegister):
     def __init__(self, spi: TMCSPIWrapper, status_cb: Callable[[str, str], int]):
         super().__init__(0x72, 'pwm_auto', spi, status_cb, [
-            ['pwm_grad_auto', 23, 8, int],
-            ['pwm_ofs_auto',   7, 8, int],
+            ['pwm_grad_auto', 23, 8, int, TMCRegister.READONLY],
+            ['pwm_ofs_auto',   7, 8, int, TMCRegister.READONLY],
         ])
 
 class StallguardThresholdRegister(TMCRegister):
@@ -353,16 +362,16 @@ class StallguardThresholdRegister(TMCRegister):
 class StallguardResultRegister(TMCRegister):
     def __init__(self, spi: TMCSPIWrapper, status_cb: Callable[[str, str], int]):
         super().__init__(0x75, 'sg4_result', spi, status_cb, [
-            ['sg4_result', 9, 10, int],
+            ['sg4_result', 9, 10, int, TMCRegister.READONLY],
         ])
 
 class StallguardIndependentRegister(TMCRegister):
     def __init__(self, spi: TMCSPIWrapper, status_cb: Callable[[str, str], int]):
         super().__init__(0x76, 'sg4_ind', spi, status_cb, [
-            ['sg4_ind_3', 31, 8, int],
-            ['sg4_ind_2', 23, 8, int],
-            ['sg4_ind_1', 15, 8, int],
-            ['sg4_ind_0', 7, 8, int],
+            ['sg4_ind_3', 31, 8, int, TMCRegister.READONLY],
+            ['sg4_ind_2', 23, 8, int, TMCRegister.READONLY],
+            ['sg4_ind_1', 15, 8, int, TMCRegister.READONLY],
+            ['sg4_ind_0',  7, 8, int, TMCRegister.READONLY],
         ])
 
 class TMCDriver():
