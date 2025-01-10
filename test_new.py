@@ -15,6 +15,10 @@ driver = TMC5160(spi_bus=0, spi_device=0)
 logging.info('%s', driver)
 
 driver.gconf.read()
-logging.info('TSTEP: %.1f', driver.gconf)
+
+driver.gconf.diag0_pushpull = True
+
+driver.__spi.write(driver.gconf.address, [0x03, 0x00, 0x00, 0x09])
+driver.gconf.read()
 
 driver.close()
