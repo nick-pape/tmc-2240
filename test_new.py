@@ -18,7 +18,7 @@ driver.gconf.read()
 
 driver.gconf.diag0_pushpull = True
 
-driver.__spi.write(driver.gconf.address, [0x03, 0x00, 0x00, 0x09])
+driver.spi.write(driver.gconf.address, [0x03, 0x00, 0x00, 0x09])
 driver.gconf.read()
 
 driver.close()

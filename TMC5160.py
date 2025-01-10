@@ -7,18 +7,22 @@ class GlobalConfigRegister(TMCRegister):
         super().__init__(0x00, 'gconf', spi, status_cb, [
             ['test_mode',           17, 1, bool],  # 2
             ['direct_mode',         16, 1, bool],  # 1
+
             ['stop_enable',         15, 1, bool],  # 8
             ['small_hysteresis',    14, 1, bool],  # 4
             ['diag1_pushpull',      13, 1, bool],  # 2
             ['diag0_pushpull',      12, 1, bool],  # 1
+
             ['diag1_steps_skipped', 11, 1, bool],  # 8
             ['diag1_onstate',       10, 1, bool],  # 4
             ['diag1_index',          9, 1, bool],  # 2
             ['diag1_stall',          8, 1, bool],  # 1
+
             ['diag0_stall',          7, 1, bool],  # 8
             ['diag0_otpw',           6, 1, bool],  # 4
             ['diag0_error',          5, 1, bool],  # 2
             ['shaft',                4, 1, bool],  # 1
+
             ['multistep_filt',       3, 1, bool],  # 8
             ['en_pwm_mode',          2, 1, bool],  # 4
             ['fast_standstill',      1, 1, bool],  # 2
@@ -29,6 +33,7 @@ class GlobalConfigRegister(TMCRegister):
 class TMC5160():
     def __init__(self, spi_bus, spi_device):
         self.__spi: TMCSPIWrapper = TMCSPIWrapper(spi_bus, spi_device)
+        self.spi = self.__spi
 
         registers = [
             GlobalConfigRegister
